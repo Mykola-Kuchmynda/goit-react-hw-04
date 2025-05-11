@@ -64,8 +64,9 @@ export default function App() {
   };
 
   const handleImageClick = image => {
-    setSelectedImage(image);
-  };
+  if (selectedImage?.id === image.id) return;
+  setSelectedImage(image);
+};
 
   const handleModalClose = () => {
     setSelectedImage(null);
