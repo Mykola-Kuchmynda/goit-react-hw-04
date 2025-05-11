@@ -1,48 +1,96 @@
-import { useState, useEffect } from 'react'
-import { nanoid } from 'nanoid';
-import css from './App.module.css'
-import ContactList from '../ContactList/ContactList';
-import SearchBox from '../SearchBox/SearchBox';
-import ContactForm from '../ContactForm/ContactForm';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
+import {Toaster } from 'react-hot-toast';
+
+import SearchBar from '../SearchBar/SearchBar';
+import ImageGallery from '../ImageGallery/ImageGallery';
+import Loader from '../Loader/Loader';
+import ErrorMessage from '../ErrorMessage/ErrorMessage';
+import LoadMoreBtn from '../LoadMoreBtn/LoadMoreBtn';
+import ImageModal from '../ImageModal/ImageModal';
+
+
+const ACCESS_KEY = 'j30Bn4S-aIpwJ1-e5_GxX9zH9oforAmEhvBbAhC1bis';
+const PER_PAGE = 12;
 
 export default function App() {
-  const initialContacts =[
-    { id: 'id-1', name: 'Rosie Simpson', number: '459-12-56' },
-    { id: 'id-2', name: 'Hermione Kline', number: '443-89-12' },
-    { id: 'id-3', name: 'Eden Clements', number: '645-17-79' },
-    { id: 'id-4', name: 'Annie Copeland', number: '227-91-26' },
-  ];
-  const [contacts, setContacts] = useState(() => {
-    const saved = localStorage.getItem('contacts');
-    return saved ? JSON.parse(saved) : initialContacts;
-  });
-  const [filter, setFilter] = useState('');
-  useEffect(() => {
-    localStorage.setItem('contacts', JSON.stringify(contacts));
-  }, [contacts]);
-const addContact = (newContact) => {
-    const contact = {
-      ...newContact,
-      id: nanoid(),
-    };
-    setContacts((prev) => [...prev, contact]);
-  };
-  const handleFilterChange = (value) => {
-    setFilter(value);
-  };
-const deleteContact = (contactId) => {
-    setContacts((prev) => prev.filter(contact => contact.id !== contactId));
-  };
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(filter.toLowerCase())
-  );
-    return (
-        <div className={css.container}>
-        <h1>Phonebook</h1>
-        <ContactForm onAdd = {addContact} />
-            <SearchBox filterValue={filter} onFilterChange={handleFilterChange}/>
-            <ContactList contacts={filteredContacts} onDelete={deleteContact} />
-        </div>
-    );
-}
+  const [query, setQuery] = useState('');
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [totalPages, setTotalPages] = useState(0);
 
+  useEffect(() => {
+    if (!query) return;
+
+    const fetchImages = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const response = await axios.get('https://api.unsplash.com/search/photos', {
+          params: {
+            query,
+            page,
+            per_page: PER_PAGE,
+            client_id: ACCESS_KEY,
+          },
+        });
+
+        const { results, total_pages } = response.data;
+        setImages(prev => (page === 1 ? results : [...prev, ...results]));
+        setTotalPages(total_pages);
+      } catch  {
+        setError('Failed to fetch images.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchImages();
+  }, [query, page]);
+
+  const handleSearch = newQuery => {
+    if (newQuery === query) return;
+    setQuery(newQuery);
+    setPage(1);
+    setImages([]);
+  };
+
+  const handleLoadMore = () => {
+    setPage(prev => prev + 1);
+  };
+
+  const handleImageClick = image => {
+    setSelectedImage(image);
+  };
+
+  const handleModalClose = () => {
+    setSelectedImage(null);
+  };
+
+  return (
+    <>
+      <SearchBar onSubmit={handleSearch} />
+      <Toaster />
+
+      {error && <ErrorMessage message={error} />}
+      <ImageGallery images={images} onImageClick={handleImageClick} />
+
+      {loading && <Loader />}
+      {images.length > 0 && page < totalPages && !loading && (
+        <LoadMoreBtn onClick={handleLoadMore} />
+      )}
+
+      {selectedImage && (
+        <ImageModal
+          isOpen={Boolean(selectedImage)}
+          onRequestClose={handleModalClose}
+          image={selectedImage}
+        />
+      )}
+    </>
+  );
+}
